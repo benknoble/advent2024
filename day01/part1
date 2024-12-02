@@ -1,0 +1,6 @@
+#! /bin/zsh
+
+. ${0:P:h:h}/utils
+
+paste =(cat $1 | cut -wf 1 | sort) =(cat $1 | cut -wf 2 | sort) |
+  awk '{ print $1 - $2 }' | sed s/^-// | sum
