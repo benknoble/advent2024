@@ -1,0 +1,29 @@
+#! /bin/zsh
+
+. ${0:P:h:h}/utils
+
+is_safe() {
+  paste =(print -rl -- $@ | sed '$d') =(print -rl -- $@ | sed 1d) |
+    awk '{
+      diff=$1 - $2
+      if (!diff) {
+        exiting=1; exit
+      }
+      sign = diff > 0 ? 1 : diff < 0 ? -1 : 0
+      if ((streak && streak != sign) || diff < -3 || diff > 3) {
+        exiting=1; exit
+      }
+      streak = sign
+    }
+    END { if (!exiting) { print "y" } }'
+}
+
+is_safe_dampened() {
+  # i: loop variable. If not local, breaks zargs :/
+  # $@ is a single string, the line of the input
+  local i args=($=@)
+  for i ({1..$#args});
+    is_safe $args[1,i-1] $args[i+1,-1] | grep y && return
+}
+
+zargs -P$(nproc) -n1 -- "${(f)$(cat $1)}" -- is_safe_dampened | grep -c y
