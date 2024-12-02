@@ -1,0 +1,6 @@
+#! /bin/zsh
+
+. ${0:P:h:h}/utils
+
+join -1 2 =(cat $1 | cut -wf 2 | sort | uniq -c) =(cat $1 | cut -wf 1 | sort) |
+  awk '{ print $1 * $2 }' | sum
