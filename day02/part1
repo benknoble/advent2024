@@ -3,20 +3,23 @@
 . ${0:P:h:h}/utils
 
 is_safe() {
-  paste =(print -rl -- $=@ | sed '$d') =(print -rl -- $=@ | sed 1d) |
-    awk '{
-      diff=$1 - $2
-      if (!diff) {
-        exiting=1; exit
+  print -rl -- $=@ |
+    awk '
+      NR == 1 { last = $1 }
+      NR > 1 {
+        diff=$1 - last
+        if (!diff) {
+          exiting=1; exit
+        }
+        sign = diff > 0 ? 1 : diff < 0 ? -1 : 0
+        if ((streak && streak != sign) || diff < -3 || diff > 3) {
+          exiting=1; exit
+        }
+        streak = sign
+        last = $1
       }
-      sign = diff > 0 ? 1 : diff < 0 ? -1 : 0
-      if ((streak && streak != sign) || diff < -3 || diff > 3) {
-        exiting=1; exit
-      }
-      streak = sign
-    }
-    END { if (!exiting) { print "y" }
-  }'
+      END { if (!exiting) { print "y" } }
+    '
 }
 
 zargs -P$(nproc) -n1 -- "${(f)$(cat $1)}" -- is_safe | grep -c y
