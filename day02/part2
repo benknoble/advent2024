@@ -30,4 +30,4 @@ is_safe_dampened() {
     is_safe $args[1,i-1] $args[i+1,-1] | grep y && return
 }
 
-zargs -P$(nproc) -n1 -- "${(f)$(cat $1)}" -- is_safe_dampened | grep -c y
+zargs -P$(nproc) -n1 -- "${(f)$(cat $1)}" -- is_safe_dampened | wc -l
