@@ -2,32 +2,35 @@
 
 . ${0:P:h:h}/utils
 
-is_safe() {
-  print -rl -- $@ |
-    awk '
-      NR == 1 { last = $1 }
-      NR > 1 {
-        diff=$1 - last
-        if (!diff) {
-          exiting=1; exit
-        }
-        sign = diff > 0
-        if ((NR > 2 && streak != sign) || diff < -3 || diff > 3) {
-          exiting=1; exit
-        }
-        streak = sign
-        last = $1
-      }
-      END { if (!exiting) { print "y" } }
-    '
-}
-
+# i is our position in the length N-1 subsequence
+# j tells us which subsequence (the one where we dropped item j)
+# when j > i, we get to do the normal diff (diff1)
+# when j == i, we take the 2 elements around j (which we have dropped)
+# when j < i, we take an almost normal diff (diff2) but with shifted indices b/c we dropped j
+# debug: place `declare -p i args diff streak bad` at the end of the j loop
 is_safe_dampened() {
-  # i: loop variable. If not local, breaks zargs :/
-  # $@ is a single string, the line of the input
-  local i args=($=@)
-  for i ({1..$#args});
-    is_safe $args[1,i-1] $args[i+1,-1] | grep y && return
+  local i j diff1 diff2 sign args=($=@) N
+  local -a diff streak bad good=(1)
+  N=$#args
+  # https://unix.stackexchange.com/a/741454/301073
+  bad=(${${:-{1..$N}}/*/0})
+  for i in {2..$((N - 1))}; {
+    ((diff1 = args[i] - args[i-1]))
+    ((diff2 = args[i+1] - args[i]))
+    for j in {1..$N}; {
+      ((diff[j] = j > i ? diff1 : j == i ? args[i+1] - args[i-1] : diff2))
+      if ((!diff[j])) { bad[j]=1; }
+      ((sign = diff[j] > 0))
+      if ((!bad[j]
+          && ( (i > 2 && streak[j] != sign)
+               || diff[j] < -3
+               || diff[j] > 3) )) {
+        bad[j]=1;
+      }
+      streak[j]=$sign
+    }
+  }
+  if test 0 -lt ${#${bad:|good}}; then printf '%s\n' y; fi
 }
 
 zargs -P$(nproc) -n1 -- "${(f)$(cat $1)}" -- is_safe_dampened | wc -l
