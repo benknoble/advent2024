@@ -11,8 +11,8 @@ is_safe() {
         if (!diff) {
           exiting=1; exit
         }
-        sign = diff > 0 ? 1 : diff < 0 ? -1 : 0
-        if ((streak && streak != sign) || diff < -3 || diff > 3) {
+        sign = diff > 0
+        if ((NR > 2 && streak != sign) || diff < -3 || diff > 3) {
           exiting=1; exit
         }
         streak = sign
