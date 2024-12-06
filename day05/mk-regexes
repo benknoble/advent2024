@@ -1,0 +1,3 @@
+#! /bin/sh
+
+exec awk -F\| '/^$/ { exit; } { print $1 ".*" $2 }'

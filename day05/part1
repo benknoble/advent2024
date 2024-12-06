@@ -1,0 +1,44 @@
+#! /bin/zsh
+
+. ${0:P:h:h}/utils
+
+patterns=$1-regexes
+<$1 ${0:P:h}/mk-regexes >$patterns
+
+# outer awk: run a program like /pat1/ && /pat2/ … on the input
+# inner awk + sed: generate an awk proram above where the pats are only those
+# that contain rules that would apply to the current line. Make sure to avoid
+# including a rule like '3|4' for a pages list like '34,50'! But input is only 2
+# digits, so no special code ;)
+check_line() {
+  <<<$@ awk -f =(
+    <$patterns awk -v pages_=$@ '
+      BEGIN { L = split(pages_, pages, /,/) }
+      {
+        for (i = 1; i <= L; ++i) {
+          for (j = i + 1; j <= L; ++j) {
+            if ($0 ~ pages[i] && $0 ~ pages[j]) {
+              printf "/%s/ && ", $0
+              next
+            }
+          }
+        }
+      }
+      END { printf "\n" }
+    ' | sed 's/&& $//'
+  )
+}
+
+middle_number() {
+  awk '{
+    N = split($0, xs, /,/);
+    if (N % 2) {
+      print xs[int(N/2) + 1]
+    } else {
+      print xs[N/2]
+    }
+  }'
+}
+
+zargs -P$(nproc) -n1 -- "${(f)$(awk 'go; /^$/ { go = 1 }' <$1)}" -- check_line |
+  middle_number | sum
