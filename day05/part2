@@ -1,0 +1,92 @@
+#! /bin/zsh
+
+. ${0:P:h:h}/utils
+
+patterns=$1-regexes
+<$1 ${0:P:h}/mk-regexes >$patterns
+
+while read line; do
+  parts=(${(s:|:)line})
+  array=rules_$parts[1]
+  eval "declare -a $array"
+  eval "$array+=(${parts[2]})"
+done < =(<$1 awk '!stop; /^$/ { stop = 1 }')
+# declare -mp 'rules_??' >&2
+
+# outer awk: run a program like ! (/pat1/ && /pat2/ …) on the input
+# inner awk + sed: generate an awk proram above where the pats are only those
+# that contain rules that would apply to the current line. Make sure to avoid
+# including a rule like '3|4' for a pages list like '34,50'! But input is only 2
+# digits, so no special code ;)
+check_line() {
+  <<<$@ awk -f =(
+    <$patterns awk -v pages_=$@ '
+      BEGIN {
+        L = split(pages_, pages, /,/)
+        printf "! ("
+      }
+      {
+        for (i = 1; i <= L; ++i) {
+          for (j = i + 1; j <= L; ++j) {
+            if ($0 ~ pages[i] && $0 ~ pages[j]) {
+              printf "/%s/ && ", $0
+              next
+            }
+          }
+        }
+      }
+      END { printf "\n" }
+    ' | sed 's/&& $/)/'
+  )
+}
+
+fix_line() {
+  local line parts part rules
+  while read line; do
+    parts=(${(s:,:)line})
+    for part ($parts) {
+      rules=($(eval "print \${parts:*rules_${part}}"))
+      print $part\ ${^rules:-$part}
+    } | tsort | paste -s -
+  done
+}
+
+# # need to do better than scanning all the rules for every line: there are more
+# # rules than lines
+# rules=(${(f)"$(<$1 awk '!stop; /^$/ { stop = 1 }')"})
+# fix_line() {
+#   local line p r pieces
+#   while read line; do
+#     for r ($rules) {
+#       if <<<$line grep -q ${r/|/'.*'}; then
+#         print ${(s:|:)r}
+#       fi
+#     } | tsort | paste -s -
+#   done
+# }
+
+# doesn't work: cycle in non-sample data
+# assume that, because each bad line must be constrained to a single solution,
+# each "fixed" line is a subset of applying every rule.
+#
+# sorted=$(print ${rules//|/ } | tsort)
+# fix_line() {
+#   local line
+#   while read line; do
+#     pats=(-e\ ${^${(s:,:)line}})
+#     print $sorted | grep -o $=pats | paste -s -
+#   done
+# }
+
+middle_number() {
+  awk '{
+    if (NF % 2) {
+      print $(int(NF/2) + 1)
+    } else {
+      print $(NF/2)
+    }
+  }'
+}
+
+zargs -P$(nproc) -n1 -- "${(f)$(awk 'go; /^$/ { go = 1 }' <$1)}" -- check_line |
+  fix_line | middle_number | sum
